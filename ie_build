@@ -1,0 +1,341 @@
+#!/usr/bin/env bash
+###############################################################################
+# Infrastructure Engineering Cloud- build system wrapper
+###############################################################################
+SCRIPT_DIR="$( cd "$( dirname "${BASH_SOURCE[0]}" )" && pwd )"
+SCRIPT_PARENT=$(ps -p ${PPID} -o cmd=)
+EXIT_VAL=0
+
+SCRIPT_VER=1.0.0
+
+###############################################################################
+echo ""
+echo "###############################################################################"
+echo "-- Infrastructure Engineering Cloud Platform - build system wrapper v${SCRIPT_VER}"
+echo ""
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Setting/checking variables"
+echo ""
+
+SCRIPT_ROOT=$(readlink -f ${SCRIPT_DIR}/../..)
+
+echo "-- Parent      = $PPID \"${SCRIPT_PARENT}\""
+echo "-- SCRIPT_ROOT = \"${SCRIPT_ROOT}\""
+
+OPT_REPO_DIR=
+OPT_LOG_BUILD=true
+OPT_BUILDNUM=
+OPT_BUILDTGT=
+
+while [ $# -gt 0 ]; do
+    if   [ "$1" == "-r" ]; then
+        shift
+        OPT_REPO_DIR="$1"
+    elif [ "$1" == "-bld" ]; then
+        shift
+        OPT_BUILDNUM="$1"
+    elif [ "$1" == "-tgt" ]; then
+        shift
+        OPT_BUILDTGT="$1"
+    elif [ "$1" == "-nolog" ]; then
+        OPT_LOG_BUILD=false
+    fi
+    shift
+done
+
+if [ -z ${OPT_REPO_DIR} ]; then
+    echo "-- Repo dir not given (must be within that tree now)"
+else
+    echo "-- Repo dir (given): ${OPT_REPO_DIR}"
+fi
+
+if [ ${OPT_LOG_BUILD} == true ]; then
+    echo "-- Will create a build log for the selected target"
+else
+    echo "-- Will NOT create a build log for the selected target"
+fi
+
+if [ -z ${OPT_BUILDTGT} ]; then
+    IE_BUILDTGT=rpm
+    echo "-- Build target (default): ${IE_BUILDTGT}"
+else
+    IE_BUILDTGT=${OPT_BUILDTGT}
+    echo "-- Build target (given): ${IE_BUILDTGT}"
+fi
+export IE_BUILDTGT
+
+if [ -z "${OPT_BUILDNUM}" ]; then
+    IE_BUILDNUM=`date +%y%m%d%H%M%S`
+    echo "-- Build number generated: ${IE_BUILDNUM}"
+else
+    IE_BUILDNUM=${OPT_BUILDNUM}
+    echo "-- Build number given: ${IE_BUILDNUM}"
+fi
+export IE_BUILDNUM
+
+echo ""
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Checking that the appropriate directories are present"
+echo ""
+
+export BLD_CTRL="00_control"
+export BLD_PWD=$(pwd)
+
+if [ ! -z "${OPT_REPO_DIR}" ]; then
+    pushd "${OPT_REPO_DIR}"
+    echo ""
+fi
+
+export REPO_DIR=
+export ROOT_DIR=
+
+CNT=0
+CNT_MAX=99
+while [ ! "/" == "$(pwd)" ] && [ ${CNT} -lt ${CNT_MAX} ]; do
+    if [ -d $(pwd)/${BLD_CTRL} ]; then
+        export REPO_DIR="$(pwd)"
+        export ROOT_DIR="$(dirname ${REPO_DIR})"
+        echo "-- Valid repo tree detected:"
+        echo "-- -- REPO_DIR    = \"${REPO_DIR}\""
+        echo "-- -- ROOT_DIR    = \"${ROOT_DIR}\""
+        break
+    fi
+    cd ..
+    # echo $(pwd)
+    CNT=$[${CNT} + 1]
+done
+
+if [ ${CNT} -ge ${CNT_MAX} ]; then
+    echo ""
+    echo "!! Error: possible recursion while attempting to detect REPO_DIR! Exiting (1)"
+    echo ""
+    exit 1
+fi
+
+if [ -z ${REPO_DIR} ]; then
+    echo ""
+    echo "!! Error: Valid repository not found in this tree! Exiting (1)"
+    echo ""
+    exit 1
+fi
+
+if [ ! "${ROOT_DIR}" == "${SCRIPT_ROOT}" ]; then
+    echo ""
+    echo "!! Warning: build script is not from the same workspace."
+    echo ""
+fi
+
+echo ""
+
+###############################################################################
+BLD_SETTINGS=${REPO_DIR}/${BLD_CTRL}/BUILD_VARS
+echo "==============================================================================="
+echo "-- Parsing the settings file ${BLD_SETTINGS}"
+echo ""
+
+export PKG_NAME=
+export PKG_VERSION=
+export DEB_CTRL_TARBALL=
+export DEB_CTRL_URL=
+export RPM_CTRL_SPECFILE=
+export RPM_CTRL_TARBALL=
+export RPM_CTRL_URL=
+export BLD_TOOLS_VER=1
+
+while read -r line; do
+    line=$(echo $line | sed 's/^\s*//g')
+    line=$(echo $line | sed 's/#.*$//g')
+    line=$(echo $line | sed 's/\s*$//g')
+
+    if   [ -z "$line" ]; then
+        #echo "-- -- Skipping empty: $line"
+        continue
+    elif [ -z "$(echo $line | sed '/^.+=.*$/p')" ]; then
+        echo "-- -- Skipping uninteresting: $line"
+        continue
+    else
+        MYKEY=$(echo $line | sed 's/^\(.*\)=\(.*\)$/\1/')
+        MYVAL=$(echo $line | sed 's/^\(.*\)=\(.*\)$/\2/')
+    fi
+
+    if   [ "${MYKEY}" == "PKG_NAME" ]; then
+        export PKG_NAME="${MYVAL}"
+        echo "-- PKG_NAME = \"${PKG_NAME}\""
+    elif [ "${MYKEY}" == "PKG_VERSION" ]; then
+        export PKG_VERSION="${MYVAL}"
+        echo "-- PKG_VERSION = \"${PKG_VERSION}\""
+    elif [ "${MYKEY}" == "DEBIAN_CTRL_TARBALL" ]; then
+        export DEB_CTRL_TARBALL="${MYVAL}"
+        echo "-- DEB_CTRL_TARBALL = \"${DEB_CTRL_TARBALL}\""
+    elif [ "${MYKEY}" == "DEBIAN_CTRL_URL" ]; then
+        export DEB_CTRL_URL="${MYVAL}"
+        echo "-- DEB_CTRL_URL = \"${DEB_CTRL_URL}\""
+    elif [ "${MYKEY}" == "RPM_CTRL_SPECFILE" ]; then
+        export RPM_CTRL_SPECFILE="${MYVAL}"
+        echo "-- RPM_CTRL_SPECFILE = \"${RPM_CTRL_SPECFILE}\""
+    elif [ "${MYKEY}" == "RPM_CTRL_TARBALL" ]; then
+        export RPM_CTRL_TARBALL="${MYVAL}"
+        echo "-- RPM_CTRL_TARBALL = \"${RPM_CTRL_TARBALL}\""
+    elif [ "${MYKEY}" == "RPM_CTRL_URL" ]; then
+        export RPM_CTRL_URL="${MYVAL}"
+        echo "-- RPM_CTRL_URL = \"${RPM_CTRL_URL}\""
+    elif [ "${MYKEY}" == "BLD_TOOLS_VER" ]; then
+        export BLD_TOOLS_VER="${MYVAL}"
+        echo "-- BLD_TOOLS_VER = \"${BLD_TOOLS_VER}\""
+    else
+        echo "-- -- Ignoring unknown setting: \"${MYKEY}\" = \"${MYVAL}\""
+    fi
+done < "${BLD_SETTINGS}"
+
+if [ -z "${PKG_NAME}" ]; then
+    echo ""
+    echo "!! Error: Package name cannot be null, check the PKG_VERSION file! Exiting (1)"
+    echo ""
+    exit 1
+fi
+
+if [ -z "${PKG_VERSION}" ]; then
+    echo ""
+    echo "!! Error: Package version cannot be null, check the PKG_VERSION file! Exiting (1)"
+    echo ""
+    exit 1
+fi
+
+echo ""
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Check if target \"${IE_BUILDTGT}\" is available for this package"
+echo ""
+
+if   [ "debian" == ${IE_BUILDTGT} ]; then
+    if [ -d "${REPO_DIR}/${BLD_CTRL}/debian" ] || [ ! -z "${DEB_CTRL_TARBALL}" ]; then
+        echo "-- Target ${IE_BUILDTGT} is available"
+        echo ""
+    else
+        echo "-- Target ${IE_BUILDTGT} is not supported - skipping. Exiting (0)"
+        echo ""
+        exit 0
+    fi
+elif [ "rpm" == ${IE_BUILDTGT} ]; then
+    if [ -d "${REPO_DIR}/${BLD_CTRL}/rpm" ] || [ ! -z "${RPM_CTRL_TARBALL}" ]; then
+        echo "-- Target ${IE_BUILDTGT} is available"
+        echo ""
+    else
+        echo "-- Target ${IE_BUILDTGT} is not supported - skipping. Exiting (0)"
+        echo ""
+        exit 0
+    fi
+else
+    echo "-- Target ${IE_BUILDTGT} is unknown - skipping. Exiting (0)"
+    echo ""
+    exit 0
+fi
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Gathering user and build target information for build mode selection"
+echo ""
+
+OS=unknown
+if [ -e /etc/redhat-release ]; then
+    grep 'release 4' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "RHEL5.x host found"
+        OS=el4
+    fi
+
+    grep 'release 5' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "RHEL5.x host found"
+        OS=el5
+    fi
+
+    grep 'release 6' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "RHEL6.x host found"
+        OS=el6
+    fi
+fi
+
+if [ -e /etc/debian_version ]; then
+    echo "Debian based host found"
+    OS=debian
+fi
+
+if [ OS == "unknown" ]; then
+    echo "Unsupported system."
+    exit 1
+fi
+
+if [ "`whoami`" == "jenkins" ]; then
+    echo "-- This is a Jenkins build"
+    export TGT_USERNAME="Infrastructure Engineering - Jenkins"
+    export TGT_CHGLOG="Infrastructure Engineering - Jenkins build"
+    export TGT_SUFFIX=${OS}
+else
+    echo "-- THIS IS A LOCAL USER TEST BUILD"
+    export TGT_USERNAME="Infrastructure Engineering - dev test"
+    export TGT_CHGLOG="Infrastructure Engieeering - dev test build"
+    export TGT_SUFFIX=devtest
+fi
+
+export TGT_EMAIL=$(echo "${TGT_USERNAME} <`whoami`@`hostname -f`>")
+export TGT_WEBHP="http://salesforce.com/"
+export TGT_VERSION="${PKG_VERSION}-${IE_BUILDNUM}-${TGT_SUFFIX}"
+
+echo ""
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Clearing the build area"
+echo ""
+
+export BLD_TEMP="${ROOT_DIR}/00_build/${IE_BUILDTGT}/${PKG_NAME}"
+rm -rf   ${BLD_TEMP}
+mkdir -p ${BLD_TEMP}
+
+export BLD_DIST="${ROOT_DIR}/00_packages/${PKG_NAME}/${IE_BUILDNUM}"
+rm -rf   ${BLD_DIST}
+mkdir -p ${BLD_DIST}
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Calling the build plugin for target ${IE_BUILDTGT}"
+echo ""
+
+BLD_CMD="${SCRIPT_DIR}/plugins/ie_plugin.${IE_BUILDTGT}_bldpkg.sh"
+BLD_LOG="${ROOT_DIR}/build.${PKG_NAME}.${IE_BUILDTGT}.log"
+
+if [ ${OPT_LOG_BUILD} == true ]; then
+    echo "-- EXEC: ${BLD_CMD} 2>&1 | tee \"${BLD_LOG}\""
+    ${BLD_CMD} 2>&1 | tee "${BLD_LOG}"
+    EXIT_VAL=$PIPESTATUS
+else
+    echo "-- EXEC: ${BLD_CMD}"
+    ${BLD_CMD}
+    EXIT_VAL=$?
+fi
+
+if [ ${EXIT_VAL} -ne 0 ]; then
+    echo ""
+    echo "!! Build sub-process for ${IE_BUILDTGT} failed! Exiting (${EXIT_VAL})"
+    echo ""
+    exit ${EXIT_VAL}
+fi
+
+echo ""
+
+###############################################################################
+echo "==============================================================================="
+echo "-- Overall process for ${IE_BUILDTGT} finished. Exiting (${EXIT_VAL})"
+echo ""
+
+exit ${EXIT_VAL}
+
+###############################################################################
+
