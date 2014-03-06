@@ -260,6 +260,12 @@ if [ -e /etc/redhat-release ]; then
         echo "RHEL6.x host found"
         OS=el6
     fi
+
+    grep 'Fedora release 20' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "RHEL6.x host found"
+        OS=fc20
+    fi
 fi
 
 if [ -e /etc/debian_version ]; then
@@ -285,7 +291,7 @@ else
 fi
 
 export TGT_EMAIL=$(echo "${TGT_USERNAME} <`whoami`@`hostname -f`>")
-export TGT_WEBHP="http://salesforce.com/"
+export TGT_WEBHP="http://localhost/"
 export TGT_VERSION="${PKG_VERSION}-${IE_BUILDNUM}-${TGT_SUFFIX}"
 
 echo ""
