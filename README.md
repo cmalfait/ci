@@ -64,13 +64,13 @@ On the local dev machine I typically follow these steps:
 Example - let's build graphite-web
 ==================================
 1. create build area, mkdir build
-2. clone the sourcet clone https://git.soma.salesforce.com/cmalfait/ci.git
+2. clone the sourcet clone 
  repo 
-	git clone https://git.soma.salesforce.com/cmalfait/graphite-web.git
+	git clone https://github.com/cmalfait/graphite-web.git
 3. clone ci repo
-	git clone https://git.soma.salesforce.com/cmalfait/ci.git
+	git clone https://github.com/cmalfait/ci.git
 4. clone puppet_local
-	git clone https://git.soma.salesforce.com/cmalfait/puppet_local.git
+	git clone https://github.com/cmalfait/puppet_local.git
 
 5. Do our local puppet apply
         cd graphite-web
