@@ -261,10 +261,22 @@ if [ -e /etc/redhat-release ]; then
         OS=el6
     fi
 
-    grep 'Fedora release 20' /etc/redhat-release 2>&1 > /dev/null
+    grep 'release 7' /etc/redhat-release 2>&1 > /dev/null
     if [ $? = 0 ]; then
-        echo "RHEL6.x host found"
-        OS=fc20
+        echo "RHEL7.x host found"
+        OS=el7
+    fi
+
+    grep 'Fedora release 21' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "Fedora 21 host found"
+        OS=fc21
+    fi
+
+    grep 'Fedora release 22' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "Fedora 22 host found"
+        OS=fc22
     fi
 fi
 
@@ -284,10 +296,14 @@ if [ "`whoami`" == "jenkins" ]; then
     export TGT_CHGLOG="Infrastructure Engineering - Jenkins build"
     export TGT_SUFFIX=${OS}
 else
-    echo "-- THIS IS A LOCAL USER TEST BUILD"
-    export TGT_USERNAME="Infrastructure Engineering - dev test"
-    export TGT_CHGLOG="Infrastructure Engieeering - dev test build"
-    export TGT_SUFFIX=devtest
+    echo "-- This is a Jenkins build"
+    export TGT_USERNAME="Infrastructure Engineering - Jenkins"
+    export TGT_CHGLOG="Infrastructure Engineering - Jenkins build"
+    export TGT_SUFFIX=${OS}
+#    echo "-- THIS IS A LOCAL USER TEST BUILD"
+#    export TGT_USERNAME="Infrastructure Engineering - dev test"
+#    export TGT_CHGLOG="Infrastructure Engieeering - dev test build"
+#    export TGT_SUFFIX=devtest
 fi
 
 export TGT_EMAIL=$(echo "${TGT_USERNAME} <`whoami`@`hostname -f`>")

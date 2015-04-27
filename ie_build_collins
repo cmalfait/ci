@@ -1,0 +1,7 @@
+#!/usr/bin/env bash
+
+cd ../collins
+scripts/package.sh
+
+cd ../ci
+./ie_build -t rpm -r ../collins
