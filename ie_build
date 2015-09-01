@@ -267,6 +267,12 @@ if [ -e /etc/redhat-release ]; then
         OS=el7
     fi
 
+    grep 'Fedora release 20' /etc/redhat-release 2>&1 > /dev/null
+    if [ $? = 0 ]; then
+        echo "Fedora 20 host found"
+        OS=fc20
+    fi
+
     grep 'Fedora release 21' /etc/redhat-release 2>&1 > /dev/null
     if [ $? = 0 ]; then
         echo "Fedora 21 host found"
